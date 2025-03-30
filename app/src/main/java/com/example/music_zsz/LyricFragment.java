@@ -42,7 +42,7 @@ public class LyricFragment extends Fragment {
         lyricAdapter = new LyricAdapter(lyricLines);
         lyricRecyclerView.setAdapter(lyricAdapter);
 
-        // 观察当前播放歌曲变化，加载歌词
+    
         SongRepository.getInstance().getCurrentSong().observe(getViewLifecycleOwner(), song -> {
             if (song != null) {
                 String lyricUrl = song.getLyricUrl();
@@ -146,7 +146,7 @@ public class LyricFragment extends Fragment {
                         if (currentIndex != lyricAdapter.getSelectedIndex()) {
                             lyricAdapter.setSelectedIndex(currentIndex);
                             lyricAdapter.notifyDataSetChanged();
-                            // 平滑滚动到当前歌词行，使其居中显示
+                           
                             lyricRecyclerView.smoothScrollToPosition(currentIndex);
                         }
                     }
