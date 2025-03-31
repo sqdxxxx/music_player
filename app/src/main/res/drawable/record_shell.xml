@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 外层唱片外壳，采用圆形渐变模拟唱片边缘 -->
+
     <item>
         <shape android:shape="oval">
             <gradient
@@ -10,7 +10,7 @@
                 android:angle="270" />
         </shape>
     </item>
-    <!-- 内层边框，用来模拟唱片的内圈，可以使用透明度或纯色 -->
+
     <item
         android:top="8dp"
         android:bottom="8dp"

@@ -28,7 +28,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
     private MediaPlayer mediaPlayer;
     private List<Song> songList;
     private int currentIndex = 0;
-    private PlayMode playMode = PlayMode.LOOP; // 默认顺序播放
+    private PlayMode playMode = PlayMode.LOOP;
     private final IBinder binder = new LocalBinder();
     private static final String CHANNEL_ID = "MusicPlayerChannel";
     private static final int NOTIFICATION_ID = 1;
@@ -44,11 +44,11 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
         super.onCreate();
         initMediaPlayer();
         createNotificationChannel();
-        // 启动前台服务，通知栏可根据需要自定义
+
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("音乐播放")
                 .setContentText("正在播放音乐")
-                .setSmallIcon(R.drawable.ic_02) // 请确保项目中存在该图标
+                .setSmallIcon(R.drawable.ic_02)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
     }
@@ -64,7 +64,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
         return binder;
     }
 
-    // 设置播放列表，调用前请确保 songList 非空
+
     public void setSongList(List<Song> list) {
         this.songList = list;
         Log.d("setsonglist","success in musicService");
@@ -77,7 +77,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
         currentIndex = 0;
     }
 
-    // 播放指定索引的歌曲
+
     public void playSongAt(int index) {
         if (songList == null || songList.isEmpty()) return;
         if (index < 0 || index >= songList.size()) return;
@@ -91,13 +91,14 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
             updateNotification(song);
             // 更新当前播放的歌曲到 Repository
             SongRepository.getInstance().setCurrentSong(song);
+            SongRepository.getInstance().setIsPlaying(true);
         } catch (IOException e) {
             Log.e("MusicService", "播放失败：" + e.getMessage());
         }
     }
 
 
-    // 切换到下一首
+
     public void playNext() {
         if (songList == null || songList.isEmpty()) return;
         switch (playMode) {
@@ -105,7 +106,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
                 currentIndex = (currentIndex + 1) % songList.size();
                 break;
             case SINGLE:
-                // 单曲循环时，重新播放当前歌曲
+
                 break;
             case SHUFFLE:
                 currentIndex = new Random().nextInt(songList.size());
@@ -114,7 +115,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
         playSongAt(currentIndex);
     }
 
-    // 切换到上一首
+
     public void playPrevious() {
         if (songList == null || songList.isEmpty()) return;
         switch (playMode) {
@@ -122,7 +123,7 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
                 currentIndex = (currentIndex - 1 + songList.size()) % songList.size();
                 break;
             case SINGLE:
-                // 单曲循环时，重新播放当前歌曲
+
                 break;
             case SHUFFLE:
                 currentIndex = new Random().nextInt(songList.size());
@@ -131,14 +132,24 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
         playSongAt(currentIndex);
     }
 
-    // 播放或暂停切换
+
     public void togglePlayPause() {
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
+            SongRepository.getInstance().setIsPlaying(false);
         } else {
             mediaPlayer.start();
+            SongRepository.getInstance().setIsPlaying(true);
         }
     }
+
+    public Song getCurrentlyPlayingSong() {
+        if (songList == null || songList.isEmpty() || currentIndex < 0 || currentIndex >= songList.size()) {
+            return null;
+        }
+        return songList.get(currentIndex);
+    }
+
 
     public boolean isPlaying() {
         return mediaPlayer.isPlaying();
@@ -205,6 +216,19 @@ public class MusicService extends Service implements MediaPlayer.OnCompletionLis
             }
         }
     }
+
+    public void clearSongListAndStop() {
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.stop();
+        }
+        if (songList != null) {
+            songList.clear();
+        }
+        currentIndex = 0;
+
+        stopForeground(true);
+    }
+
 
     @Override
     public void onDestroy() {

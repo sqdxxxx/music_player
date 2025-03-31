@@ -50,7 +50,7 @@
                     android:textColor="@android:color/white"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:text="到此为止" />
+                    android:text="无" />
 
                 <TextView
                     android:id="@+id/singerTextView"
@@ -60,7 +60,7 @@
                     android:ellipsize="end"
                     android:textColor="@android:color/white"
                     android:textSize="14sp"
-                    android:text="徐佳莹" />
+                    android:text="无" />
             </LinearLayout>
 
 

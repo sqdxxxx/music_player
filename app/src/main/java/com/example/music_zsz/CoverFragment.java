@@ -46,6 +46,22 @@ public class CoverFragment extends Fragment {
             }
         });
 
+        SongRepository.getInstance().getIsPlayingLiveData().observe(getViewLifecycleOwner(), isPlaying -> {
+            if (animator != null) {
+                if (isPlaying) {
+                    // 如果处于播放状态则恢复动画
+                    if (animator.isPaused()) {
+                        animator.resume();
+                    }
+                } else {
+                    // 暂停状态下暂停动画
+                    if (animator.isRunning()) {
+                        animator.pause();
+                    }
+                }
+            }
+        });
+
         startCoverRotation();
         return view;
     }

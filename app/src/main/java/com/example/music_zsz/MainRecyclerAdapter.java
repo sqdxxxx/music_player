@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -125,31 +126,82 @@ public class MainRecyclerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     class BannerViewHolder extends RecyclerView.ViewHolder {
         ViewPager2 viewPager;
         BannerAdapter bannerAdapter;
+        LinearLayout llIndicator; // 指示器容器
 
         public BannerViewHolder(View itemView) {
             super(itemView);
             viewPager = itemView.findViewById(R.id.viewPager);
+            llIndicator = itemView.findViewById(R.id.llIndicator);
             bannerAdapter = new BannerAdapter(new ArrayList<>());
             viewPager.setAdapter(bannerAdapter);
 
+            // 初始化指示器圆点，等数据加载后再设置
+            // 我们先不生成，等 bindData 后再根据 bannerAdapter.getItemCount() 初始化指示器
+
+            // 自动轮播 Runnable
             bannerRunnable = new Runnable() {
                 @Override
                 public void run() {
-                    if (bannerAdapter.getItemCount() > 0) {
+                    int realCount = bannerAdapter.getItemCount();
+                    if (realCount > 0) {
                         int current = viewPager.getCurrentItem();
-                        int next = (current + 1) % bannerAdapter.getItemCount();
+                        int next = (current + 1) % realCount;
                         viewPager.setCurrentItem(next, true);
                     }
                     bannerHandler.postDelayed(this, 3000);
                 }
             };
             bannerHandler.postDelayed(bannerRunnable, 3000);
+
+            // 页面切换回调，用于更新指示器状态
+            viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+                @Override
+                public void onPageSelected(int position) {
+                    // 如果无限循环了，实际位置取余
+                    int realPosition = bannerAdapter.getRealPosition(position);
+                    updateIndicator(realPosition);
+                }
+            });
+        }
+
+        // 生成指示器圆点
+        private void initIndicator(int count) {
+            llIndicator.removeAllViews();
+            for (int i = 0; i < count; i++) {
+                View dot = new View(itemView.getContext());
+                int size = (int) (8 * itemView.getContext().getResources().getDisplayMetrics().density);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+                params.setMargins(size/2, 0, size/2, 0);
+                dot.setLayoutParams(params);
+                // 初始状态：灰色
+                dot.setBackgroundResource(R.drawable.bg_dot_unselected);
+                llIndicator.addView(dot);
+            }
+            // 默认将第一个圆点设为选中状态
+            if (count > 0) {
+                llIndicator.getChildAt(0).setBackgroundResource(R.drawable.bg_dot_selected);
+            }
+        }
+
+        // 更新指示器：将 position 对应的圆点设为选中，其它恢复为未选中
+        private void updateIndicator(int position) {
+            int count = llIndicator.getChildCount();
+            for (int i = 0; i < count; i++) {
+                if (i == position) {
+                    llIndicator.getChildAt(i).setBackgroundResource(R.drawable.bg_dot_selected);
+                } else {
+                    llIndicator.getChildAt(i).setBackgroundResource(R.drawable.bg_dot_unselected);
+                }
+            }
         }
 
         public void bindData(List<Song> data) {
             bannerAdapter.updateData(data);
+            // 重新生成指示器
+            initIndicator(bannerAdapter.getRealCount());
         }
     }
+
 
     static class SpecialViewHolder extends RecyclerView.ViewHolder {
         RecyclerView specialRecyclerView;

@@ -1,6 +1,8 @@
 package com.example.music_zsz;
 
 import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorInflater;
 import android.animation.ObjectAnimator;
 import android.content.ComponentName;
 import android.content.Context;
@@ -31,7 +33,9 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
+import com.tencent.mmkv.MMKV;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MusicPlayerActivity extends AppCompatActivity {
@@ -43,6 +47,7 @@ public class MusicPlayerActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
     private MusicPagerAdapter pagerAdapter;
 
+    private boolean isFavorited = false;
 
 
     private ImageView coverImageView, playModel, prevImageView, playPauseImageView, nextImageView, itemlist, closeButton, likeImageView;
@@ -104,28 +109,40 @@ public class MusicPlayerActivity extends AppCompatActivity {
         initCommonViews();
         setClickListeners();
 
-        // 绑定服务
+
         Intent serviceIntent = new Intent(this, MusicService.class);
+
+
+
         bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
 
-        SongRepository.getInstance().getPlaylist().observe(this, songs -> {
-            Log.d("Repository", "Playlist size: " + (songs != null ? songs.size() : "null"));
-            if (musicService != null) {
-                musicService.setSongList(songs);
-                Log.d("setsonglist","success in observe");
 
-            }
-        });
         SongRepository.getInstance().getCurrentSong().observe(this, newSong -> {
             if (newSong != null) {
                 updateUIForSong(newSong);
 
                 Log.d("MusicPlayerActivity", "当前播放歌曲更新：" + newSong.getName());
+            }else{
+                finish();
             }
         });
+
+
+        SongRepository.getInstance().getIsPlayingLiveData().observe(this, isPlaying -> {
+            if (isPlaying) {
+                playPauseImageView.setImageResource(R.drawable.ic_pause);
+            } else {
+                playPauseImageView.setImageResource(R.drawable.ic_play);
+            }
+        });
+
     }
 
-    // 初始化所有控件
+
+
+
+
+
     private void initCommonViews() {
         coverImageView = findViewById(R.id.coverImageView);
         songNameTextView = findViewById(R.id.songNameTextView);
@@ -145,12 +162,15 @@ public class MusicPlayerActivity extends AppCompatActivity {
 
     private void setClickListeners() {
 
+
+
         if (closeButton != null) {
             closeButton.setOnClickListener(v -> {
                 finish();
                 overridePendingTransition(0, R.anim.anim_exit_bottom);
             });
         }
+
 
 
         playModel.setOnClickListener(v -> {
@@ -189,16 +209,6 @@ public class MusicPlayerActivity extends AppCompatActivity {
             if (serviceBound && musicService != null) {
                 musicService.togglePlayPause();
 
-                CoverFragment coverFragment = (CoverFragment) pagerAdapter.getFragmentAt(0);
-                if (musicService.isPlaying()) {
-                    playPauseImageView.setImageResource(R.drawable.ic_pause);
-                    coverFragment.resumeAnimation();
-
-                } else {
-                    playPauseImageView.setImageResource(R.drawable.ic_play);
-                    coverFragment.pauseAnimation();
-
-                }
             }
         });
 
@@ -210,35 +220,45 @@ public class MusicPlayerActivity extends AppCompatActivity {
         });
 
         likeImageView.setOnClickListener(v -> {
-            SongRepository.getInstance().toggleLikeForCurrentSong();
+            MMKV kv = MMKV.defaultMMKV();
+            // musicUrl作为 key
+            String key = "favorite_" + musicService.getCurrentlyPlayingSong().getMusicUrl();
+
+
+            if (!isFavorited) {
+
+                Animator animator = AnimatorInflater.loadAnimator(this, R.animator.favorite_animator);
+                animator.setTarget(likeImageView);
+                animator.start();
+
+                isFavorited = true;
+                likeImageView.setImageResource(R.drawable.ic_liked);
+
+                kv.encode(key, true);
+            } else {
+
+                Animator animator = AnimatorInflater.loadAnimator(this, R.animator.unfavorite_animator);
+                animator.setTarget(likeImageView);
+                animator.start();
+
+                isFavorited = false;
+                likeImageView.setImageResource(R.drawable.ic_like);
+
+                kv.encode(key, false);
+            }
         });
+
 
 
         itemlist.setOnClickListener(v -> {
 
-            List<Song> songQueue = SongRepository.getInstance().getPlaylist().getValue();
-            if (songQueue == null || songQueue.isEmpty()) {
-                Toast.makeText(this, "播放队列为空", Toast.LENGTH_SHORT).show();
-                return;
+            if (musicService != null) {
+                // 打开BottomSheet
+                MusicListDialog dialog = new MusicListDialog(musicService);
+                dialog.show(getSupportFragmentManager(), "MusicQueueDialog");
+            } else {
+                Toast.makeText(MusicPlayerActivity.this, "音乐服务未启动", Toast.LENGTH_SHORT).show();
             }
-
-
-            String[] songNames = new String[songQueue.size()];
-            for (int i = 0; i < songQueue.size(); i++) {
-                songNames[i] = songQueue.get(i).getName();
-            }
-
-
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("播放队列")
-                    .setItems(songNames, (dialog, which) -> {
-
-                        if (musicService != null) {
-                            musicService.playSongAt(which);
-                        }
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
         });
 
 
@@ -278,38 +298,46 @@ public class MusicPlayerActivity extends AppCompatActivity {
 
 
     private void initMusicPlayer() {
-        // 获取从mainactivity那里点击然后传入到这里来的歌曲
-        Song firstSong = (Song) getIntent().getParcelableExtra("song");
-        Log.d("getMusicUrl:",firstSong.getMusicUrl());
-
-        if (firstSong != null) {
-            updateUIForSong(firstSong);
 
 
-
-            // 播放点击的第一个封面，并把它放到播放列表的第一项
-            musicService.addSong(firstSong);
-            musicService.playSongAt(0);
-
-
-
-            handler.postDelayed(() -> {
-                if (musicService != null) {
-                    seekBar.setMax(musicService.getDuration());
-                    tvTotalTime.setText(formatTime(musicService.getDuration()));
-                }
-            }, 1000);
-
-
-            handler.post(updateProgressRunnable);
+        Song currentSong = SongRepository.getInstance().getCurrentSong().getValue();
+        if (currentSong == null) {
+            Toast.makeText(this, "尚未选择歌曲", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+
+        updateUIForSong(currentSong);
+
+
+        if (musicService != null) {
+
+            int duration = musicService.getDuration();
+            seekBar.setMax(duration);
+            tvTotalTime.setText(formatTime(duration));
+
+            int currentPos = musicService.getCurrentPosition();
+            seekBar.setProgress(currentPos);
+            tvCurrentTime.setText(formatTime(currentPos));
+        }
+
+
+        handler.post(updateProgressRunnable);
     }
+
     private void updateUIForSong(Song song) {
+        MMKV kv = MMKV.defaultMMKV();
+        String key = "favorite_" + song.getMusicUrl();
+        boolean fav = kv.decodeBool(key, false);
+        song.setLike(fav);
+        isFavorited = fav;
+
         songNameTextView.setText(song.getName());
         singerTextView.setText(song.getSinger());
-        if(song.getLike()){
+
+        if (fav) {
             likeImageView.setImageResource(R.drawable.ic_liked);
-        }else{
+        } else {
             likeImageView.setImageResource(R.drawable.ic_like);
         }
 

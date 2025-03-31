@@ -36,6 +36,7 @@
 
         <activity
             android:name=".MusicPlayerActivity"
+            android:launchMode="singleTask"
             android:exported="true" />
 
 

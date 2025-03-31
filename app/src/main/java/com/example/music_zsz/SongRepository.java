@@ -9,6 +9,7 @@ public class SongRepository {
     private static SongRepository instance;
     private final MutableLiveData<List<Song>> playlistLiveData = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Song> currentSongLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isPlayingLiveData = new MutableLiveData<>(false); // 默认暂停
 
     private SongRepository() { }
 
@@ -48,8 +49,16 @@ public class SongRepository {
         Song song = currentSongLiveData.getValue();
         if (song != null) {
             song.setLike(!song.getLike());
-            // 通知观察者
             currentSongLiveData.setValue(song);
         }
+    }
+
+
+    public LiveData<Boolean> getIsPlayingLiveData() {
+        return isPlayingLiveData;
+    }
+
+    public void setIsPlaying(boolean isPlaying) {
+        isPlayingLiveData.setValue(isPlaying);
     }
 }

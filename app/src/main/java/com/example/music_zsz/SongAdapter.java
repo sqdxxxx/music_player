@@ -58,27 +58,77 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
 
 
         holder.playImageView.setOnClickListener(v -> {
-            //当你点击了封面，就会使用这个单例把数据传到musicactivity里面，我一开始想使用viewmodel，但是好像因为这个SongAdapter是和mainactivity绑定的，导致我创建的viewmodel也和它绑定了，而不是和musicactivity绑定
-            SongRepository.getInstance().addSong(song);
-            Toast.makeText(
-                    v.getContext(),
-                    "将 " + song.getName() + " 添加到音乐列表",
-                    Toast.LENGTH_SHORT
-            ).show();
+            List<Song> playlist = SongRepository.getInstance().getPlaylist().getValue();
+            if (playlist == null) {
+                playlist = new ArrayList<>();
+            }
+            boolean found = false;
+            for (Song s : playlist) {
+                if (s.getMusicUrl().equals(song.getMusicUrl())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+
+                Toast.makeText(
+                        v.getContext(),
+                        "播放列表中已存在 " + song.getName(),
+                        Toast.LENGTH_SHORT
+                ).show();
+            } else {
+
+                SongRepository.getInstance().addSong(song);
+                Toast.makeText(
+                        v.getContext(),
+                        "已添加 " + song.getName() + " 到播放列表",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
         });
 
 
         holder.itemView.setOnClickListener(v -> {
             Context context = v.getContext();
+
+            List<Song> newPlaylist = new ArrayList<>(songs);
+            SongRepository.getInstance().setPlaylist(newPlaylist);
+
+            SongRepository.getInstance().setCurrentSong(song);
+
+            if (context instanceof MainActivity) {
+                MainActivity activity = (MainActivity) context;
+                MusicService musicService = activity.getMusicService();
+
+                if (musicService != null) {
+
+                    musicService.setSongList(newPlaylist);
+
+
+                    int index = findIndexInList(song, newPlaylist);
+
+                    musicService.playSongAt(index);
+                }
+            }
+
             Intent intent = new Intent(context, MusicPlayerActivity.class);
-            intent.putExtra("song", song);
+
+
+
             context.startActivity(intent);
-            Toast.makeText(
-                    v.getContext(),
-                    song.getName(),
-                    Toast.LENGTH_SHORT
-            ).show();
+
+            Toast.makeText(context, "正在准备播放：" + song.getName(), Toast.LENGTH_SHORT).show();
         });
+
+    }
+
+    private int findIndexInList(Song target, List<Song> list) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getMusicUrl().equals(target.getMusicUrl())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Override

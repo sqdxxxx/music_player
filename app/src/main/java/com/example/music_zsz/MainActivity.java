@@ -1,16 +1,27 @@
 package com.example.music_zsz;
 
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.util.Log;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.databinding.DataBindingUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.example.music_zsz.databinding.ActivityMainBinding;
 
 import org.jetbrains.annotations.NotNull;
@@ -18,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -30,12 +42,45 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private MainRecyclerAdapter mainAdapter;
 
+    private View  floatingView;
+    private ImageView floatingCover, floatingPlayPause, floatingPlaylist;
+    private TextView floatingSongName, floatingSingerName;
 
     private int currentPage = 1;
     private boolean isLoading = false;
 
     private Handler bannerHandler = new Handler();
     private Runnable bannerRunnable;
+
+    private MusicService musicService;
+    private boolean serviceBound = false;
+
+    public MusicService getMusicService() {
+        return serviceBound ? musicService : null;
+    }
+
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            MusicService.LocalBinder binder = (MusicService.LocalBinder) service;
+            musicService = binder.getService();
+            serviceBound = true;
+
+            List<Song> currentList = SongRepository.getInstance().getPlaylist().getValue();
+            if (currentList != null) {
+                musicService.setSongList(currentList);
+                Log.d("setsonglist", "success in MainActivity Service");
+            }
+
+            Log.d("MainActivity", "MusicService绑定成功");
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            serviceBound = false;
+            Log.d("MainActivity", "MusicService解绑");
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +95,15 @@ public class MainActivity extends AppCompatActivity {
         binding.mainRecyclerView.setAdapter(mainAdapter);
         binding.mainRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
+        Intent serviceIntent = new Intent(this, MusicService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+
+        // 绑定 MusicService
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
 
         binding.mainRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -78,7 +132,86 @@ public class MainActivity extends AppCompatActivity {
 
         // 第一次加载第一页
         loadServerData(currentPage);
+        initFloatingViews();
+        setClickListeners();
+
+        SongRepository.getInstance().getCurrentSong().observe(this, newSong -> {
+            if (newSong != null) {
+                floatingView.setVisibility(View.VISIBLE);
+                updateUIForFloating(newSong);
+                Log.d("MainActivity", "当前播放歌曲更新：" + newSong.getName());
+            }else{
+                floatingView.setVisibility(View.GONE);
+            }
+        });
+
+        SongRepository.getInstance().getIsPlayingLiveData().observe(MainActivity.this, isPlaying -> {
+            if (isPlaying) {
+                floatingPlayPause.setImageResource(R.drawable.ic_black_pause);
+            } else {
+                floatingPlayPause.setImageResource(R.drawable.ic_black_play);
+            }
+        });
+
+
     }
+
+    private void initFloatingViews(){
+        floatingView = findViewById(R.id.floatingView);
+        floatingCover = floatingView.findViewById(R.id.floatingCover);
+        floatingSongName = floatingView.findViewById(R.id.floatingSongName);
+        floatingSingerName = floatingView.findViewById(R.id.floatingSingerName);
+        floatingPlayPause = floatingView.findViewById(R.id.floatingPlayButton);
+        floatingPlaylist = floatingView.findViewById(R.id.floatingPlaylistButton);
+    }
+
+    private void setClickListeners() {
+        floatingView.setOnClickListener(v -> {
+            Song currentSong = SongRepository.getInstance().getCurrentSong().getValue();
+            if (currentSong == null) {
+                Toast.makeText(MainActivity.this, "当前暂无播放歌曲", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent intent = new Intent(MainActivity.this, MusicPlayerActivity.class);
+            startActivity(intent);
+            // 设置页面从底部划入的动画效果（需在 res/anim 下创建 anim_enter_bottom.xml）
+            overridePendingTransition(R.anim.anim_enter_bottom, 0);
+        });
+
+        floatingPlayPause.setOnClickListener(v -> {
+            if (musicService != null) {
+                musicService.togglePlayPause();
+            }
+        });
+
+
+
+        floatingPlaylist.setOnClickListener(v -> {
+            if (musicService != null) {
+                // 打开BottomSheet
+                MusicListDialog dialog = new MusicListDialog(musicService);
+                dialog.show(getSupportFragmentManager(), "MusicQueueDialog");
+            } else {
+                Toast.makeText(MainActivity.this, "音乐服务未启动", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+    }
+
+    private void updateUIForFloating(Song song){
+        if (song != null) {
+            floatingSongName.setText(song.getName());
+            floatingSingerName.setText(song.getSinger());
+            Glide.with(this)
+                    .load(song.getCoverUrl())
+                    .circleCrop()
+                    .error(R.drawable.ic_02)
+                    .into(floatingCover);
+        }
+
+    }
+
+
 
     private void loadMoreData() {
         isLoading = true;
@@ -160,6 +293,39 @@ public class MainActivity extends AppCompatActivity {
 
                         mainAdapter.setModuleItems(initModules);
 
+                        // 仅在首次打开时执行（如果当前播放歌曲为空）
+                        if (SongRepository.getInstance().getCurrentSong().getValue() == null) {
+                            List<List<Song>> modules = new ArrayList<>();
+                            if (!bannerSongs.isEmpty()) modules.add(bannerSongs);
+                            if (!specialSongs.isEmpty()) modules.add(specialSongs);
+                            if (!dailySongs.isEmpty()) modules.add(dailySongs);
+                            if (!popularSongs.isEmpty()) modules.add(popularSongs);
+
+                            if (!modules.isEmpty()) {
+                                Random random = new Random();
+                                int moduleIndex = random.nextInt(modules.size());
+                                List<Song> selectedModule = modules.get(moduleIndex);
+                                // 随机选择该模块中的一首作为当前播放歌曲
+                                int songIndex = random.nextInt(selectedModule.size());
+                                Song selectedSong = selectedModule.get(songIndex);
+
+                                // 将该模块所有歌曲设置到 SongRepository 中
+                                for(Song s:selectedModule){
+                                    SongRepository.getInstance().addSong(s);
+                                }
+                                // 设置当前歌曲
+                                SongRepository.getInstance().setCurrentSong(selectedSong);
+
+                                // 如果 MusicService 已经绑定，则更新其播放列表，并播放第一首歌
+                                if (musicService != null) {
+                                    musicService.setSongList(selectedModule);
+                                    // 将选中的歌曲添加到列表的最前端并播放
+                                    musicService.addSong(selectedSong);
+                                    musicService.playSongAt(0);
+                                }
+                            }
+                        }
+
                     } else {
                         //上拉加载可自定义添加上面模块，我这里写的是添加每日推荐和热门金曲
 
@@ -187,9 +353,15 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (serviceBound) {
+            unbindService(serviceConnection);
+            serviceBound = false;
+        }
         if (bannerHandler != null && bannerRunnable != null) {
             bannerHandler.removeCallbacks(bannerRunnable);
         }

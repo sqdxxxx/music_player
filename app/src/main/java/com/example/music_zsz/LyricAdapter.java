@@ -12,7 +12,9 @@ import java.util.List;
 public class LyricAdapter extends RecyclerView.Adapter<LyricAdapter.ViewHolder> {
 
     private List<LyricLine> lyricLines;
-    private int selectedIndex = 0; 
+
+    private int selectedIndex = 0;
+
 
     public LyricAdapter(List<LyricLine> lyricLines) {
         this.lyricLines = lyricLines;
@@ -38,7 +40,7 @@ public class LyricAdapter extends RecyclerView.Adapter<LyricAdapter.ViewHolder> 
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         LyricLine line = lyricLines.get(position);
         holder.lyricTextView.setText(line.text);
-       
+
         if (position == selectedIndex) {
             holder.lyricTextView.setTextColor(Color.WHITE);
             holder.lyricTextView.setTextSize(20);
@@ -55,19 +57,26 @@ public class LyricAdapter extends RecyclerView.Adapter<LyricAdapter.ViewHolder> 
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView lyricTextView;
+
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             lyricTextView = itemView.findViewById(R.id.itemLyricTextView);
         }
     }
 
-   
-    public static class LyricLine {
-        public int time; 
-        public String text;
-        public LyricLine(int time, String text) {
-            this.time = time;
-            this.text = text;
+
+
+
+
+        public static class LyricLine {
+            public int time;
+
+            public String text;
+
+            public LyricLine(int time, String text) {
+                this.time = time;
+                this.text = text;
+            }
         }
-    }
+
 }
