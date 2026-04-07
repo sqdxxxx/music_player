@@ -21,10 +21,10 @@
 ## 项目截图
 
 ### 首页
-![首页](images/首页.jpg)
-
+<img src="images/首页.jpg" alt="首页" width="300" />
 ### 播放详情页
-![播放页](images/播放页.jpg)
+
+<img src="images/播放页.jpg" alt="播放页" width="300" />
 
 
 
